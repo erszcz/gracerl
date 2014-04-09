@@ -1,0 +1,12 @@
+{application, gracerl,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { gracerl_app, []}},
+  {env, []}
+ ]}.
