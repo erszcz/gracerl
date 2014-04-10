@@ -95,7 +95,11 @@ handle_term(Term) ->
 term_to_samples(Term) ->
     lists:flatmap(fun subterm_to_samples/1, Term).
 
-subterm_to_samples({sent_total = Stat, [stat | PidSent]}) ->
+subterm_to_samples({Stat, [stat | PidSent]})
+  when queued =:= Stat;
+       received =:= Stat;
+       sent_self =:= Stat;
+       sent_total =:= Stat ->
     series_to_samples(metric(?cfg(node), Stat), PidSent);
 subterm_to_samples(_) ->
     [].
