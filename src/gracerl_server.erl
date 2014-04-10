@@ -95,6 +95,10 @@ handle_term(Term) ->
 term_to_samples(Term) ->
     lists:flatmap(fun subterm_to_samples/1, Term).
 
+subterm_to_samples({Stat, [stat | Pids]})
+  when spawned =:= Stat;
+       exited =:= Stat ->
+    [sample(metric(?cfg(node), Stat), length(Pids))];
 subterm_to_samples({Stat, [stat | PidSent]})
   when queued =:= Stat;
        received =:= Stat;
@@ -103,6 +107,9 @@ subterm_to_samples({Stat, [stat | PidSent]})
     series_to_samples(metric(?cfg(node), Stat), PidSent);
 subterm_to_samples(_) ->
     [].
+
+sample(Metric, Value) ->
+    #carbon_sample{metric = Metric, value = Value}.
 
 -spec metric(node(), atom()) -> iolist().
 metric(Node, Stat) ->
