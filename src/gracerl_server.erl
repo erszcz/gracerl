@@ -20,7 +20,11 @@
 
 -define(l2b(L), list_to_binary(L)).
 -define(l2i(L), list_to_integer(L)).
--define(a2b(A), ?l2b(atom_to_list(A))).
+-define(a2l(A), atom_to_list(A)).
+-define(a2b(A), ?l2b(?a2l(A))).
+-define(b2l(A), binary_to_list(A)).
+
+-include_lib("carbonizer/include/carbonizer.hrl").
 
 %%%===================================================================
 %%% API
@@ -49,8 +53,8 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({send, Sample}, State = #state{}) ->
-    %[Pid ! {data, Data} || Pid <- Sockets],
+handle_cast({send, Sample}, #state{} = State) ->
+    carbonizer:send(Sample),
     {noreply, State};
 handle_cast({trace, TP, {term, Term}}, State = #state{trace_pid = TP}) ->
     handle_term(Term),
@@ -81,34 +85,45 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 handle_term(Term) ->
-    Sample = term_to_sample(Term),
-    io:format("term: ~p~n~n", [Term]).
-    %io:format("sample: ~p~n", [Sample]).
-    %gen_server:cast(?SERVER, {send, Sample}).
+    Timestamp = os:timestamp(),
+    Samples = term_to_samples(Term),
+    io:format("term: ~p~n~n", [Term]),
+    io:format("samples: ~p~n", [Samples]),
+    [gen_server:cast(?SERVER, {send, S#carbon_sample{timestamp = Timestamp}})
+     || S <- Samples].
 
-term_to_sample(Term) ->
-    Term.
+term_to_samples(Term) ->
+    lists:flatmap(fun subterm_to_samples/1, Term).
 
-%handle_term(Term) ->
-%    Struct = [{?a2b(Title), [to_struct(Title, Item) || Item <- Body]}
-%              || {Title, [stat|Body]} <- Term],
-%    JSON = lists:flatten(mochijson2:encode({struct, Struct})),
-%    io:format("~s~n",[JSON]),
-%    gen_server:cast(?SERVER, {send, JSON}).
+subterm_to_samples({sent_total = Stat, [stat | PidSent]}) ->
+    series_to_samples(metric(?cfg(node), Stat), PidSent);
+subterm_to_samples(_) ->
+    [].
 
-%to_struct(Section, PidStr) when Section == spawned;
-%                                Section == exited ->
-%    ?l2b(PidStr);
-%to_struct(sent, {Source, Target, Up, Down}) ->
-%    {struct, [{source, ?l2b(Source)},
-%              {target, ?l2b(Target)},
-%              {up, Up},
-%              {down, Down}]};
-%to_struct(Section, {PidStr, Num}) when Section == sent_self;
-%                                       Section == queued;
-%                                       Section == received ->
-%    {struct, [{pid, ?l2b(PidStr)},
-%              {num, Num}]}.
+-spec metric(node(), atom()) -> iolist().
+metric(Node, Stat) ->
+    [<<"nodes">>, $., ?a2b(Node), $., ?a2b(Stat)].
+
+-type series() :: [{string(), integer()}].
+
+-spec series_to_samples(iolist(), series()) -> [carbon_sample()].
+series_to_samples(Metric, Series) ->
+    [#carbon_sample{metric = [Metric, $., normalise(Pid)], value = Value}
+     || {Pid, Value} <- Series].
+
+-define(UNFRIENDLY_CHARS, ". /").
+
+-spec normalise(Name :: string()) ->
+          NormalisedName :: string().
+normalise(Name) when is_list(Name) ->
+    [case lists:member(Char, ?UNFRIENDLY_CHARS) of
+         true -> $-;
+         false -> Char
+     end || Char <- Name];
+normalise(Name) when is_binary(Name) ->
+    normalise(?b2l(Name));
+normalise(Name) when is_atom(Name) ->
+    normalise(?a2l(Name)).
 
 script_src() ->
     [{probe, "process-spawn",
