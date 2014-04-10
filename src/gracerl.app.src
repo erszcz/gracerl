@@ -1,12 +1,10 @@
 {application, gracerl,
- [
-  {description, ""},
-  {vsn, "1"},
+ [{description, "Transfer tracerl output to Graphite"},
+  {vsn, git},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib
                  ]},
-  {mod, { gracerl_app, []}},
-  {env, []}
- ]}.
+  {mod, {gracerl, []}},
+  {env, []}]}.
