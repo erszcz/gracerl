@@ -8,20 +8,24 @@
 %% Supervisor callbacks
 -export([init/1]).
 
-%% Helper macro for declaring children of supervisor
--define(CHILD(I, Type), {I, {I, start_link, []}, permanent, 5000, Type, [I]}).
-
 %% ===================================================================
 %% API functions
 %% ===================================================================
 
 start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+    CarbonHost = application:get_env(gracerl, carbon_host, "localhost"),
+    CarbonPort = application:get_env(gracerl, carbon_port, 2003),
+    supervisor:start_link({local, ?MODULE}, ?MODULE, [CarbonHost, CarbonPort]).
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
-init([]) ->
-    {ok, { {one_for_one, 5, 10}, []} }.
-
+init([CarbonHost, CarbonPort]) ->
+    Procs = [{gracerl_server,
+              {gracerl_server, start_link, []},
+              permanent, 1000, worker, [gracerl_server]},
+             {carbonizer,
+              {carbonizer, start_link, [CarbonHost, CarbonPort]},
+              permanent, 1000, worker, [carbonizer]}],
+    {ok, {{one_for_one, 5, 10}, Procs}}.
