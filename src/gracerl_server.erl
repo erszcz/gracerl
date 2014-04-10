@@ -98,7 +98,11 @@ term_to_samples(Term) ->
 subterm_to_samples({Stat, [stat | Pids]})
   when spawned =:= Stat;
        exited =:= Stat ->
-    [sample(metric(?cfg(node), Stat), length(Pids))];
+    case Pids of
+        [] -> [];
+        _ ->
+            [sample(metric(?cfg(node), Stat), length(Pids))]
+    end;
 subterm_to_samples({Stat, [stat | PidSent]})
   when queued =:= Stat;
        received =:= Stat;
