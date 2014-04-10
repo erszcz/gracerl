@@ -26,6 +26,7 @@ init([CarbonHost, CarbonPort]) ->
               {gracerl_server, start_link, []},
               permanent, 1000, worker, [gracerl_server]},
              {carbonizer,
-              {carbonizer, start_link, [CarbonHost, CarbonPort]},
+              {carbonizer, start_link, [CarbonHost, CarbonPort,
+                                        [{register, {local, carbonizer}}]]},
               permanent, 1000, worker, [carbonizer]}],
     {ok, {{one_for_one, 5, 10}, Procs}}.
