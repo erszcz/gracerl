@@ -27,6 +27,8 @@ init([CarbonHost, CarbonPort]) ->
               permanent, 1000, worker, [gracerl_server]},
              {carbonizer,
               {carbonizer, start_link, [CarbonHost, CarbonPort,
-                                        [{register, {local, carbonizer}}]]},
+                                        [{register, {local, carbonizer}},
+                                         {flush_freq, 1000},
+                                         {flush_time, 1}]]},
               permanent, 1000, worker, [carbonizer]}],
     {ok, {{one_for_one, 5, 10}, Procs}}.

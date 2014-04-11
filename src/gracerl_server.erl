@@ -193,7 +193,7 @@ script_src() ->
       [{count, queued, [pid]}]},
      {probe, "message-receive",
       [{count, received, [pid]}]},
-     {probe, {tick, 5},
+     {probe, {tick, 1},
       [{print_term,
         [{spawned, '$1'},
          {exited, '$2'},
