@@ -53,11 +53,8 @@ handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
 
-handle_cast({send, Sample}, #state{} = State) ->
-    carbonizer:send(Sample),
-    {noreply, State};
 handle_cast({trace, TP, {term, Term}}, State = #state{trace_pid = TP}) ->
-    handle_term(Term),
+    handle_term(Term, State),
     {noreply, State};
 handle_cast({trace, TP, {error, Reason, Line}},
             State = #state{trace_pid = TP}) ->
@@ -65,6 +62,12 @@ handle_cast({trace, TP, {error, Reason, Line}},
     {noreply, State};
 handle_cast({trace, TP, eof}, State = #state{trace_pid = TP}) ->
     {stop, normal, State};
+handle_cast({filter, Sample}, #state{} = State) ->
+    send_sample(Sample, State),
+    {noreply, State};
+handle_cast({send, Sample}, #state{} = State) ->
+    carbonizer:send(Sample),
+    {noreply, State};
 handle_cast(stop, State = #state{trace_pid = TP}) ->
     tracerl:stop(TP),
     {noreply, State};
@@ -84,13 +87,20 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-handle_term(Term) ->
+handle_term(Term, _State) ->
     Timestamp = os:timestamp(),
     Samples = term_to_samples(Term),
     io:format("term: ~p~n~n", [Term]),
     io:format("samples: ~p~n", [Samples]),
-    [gen_server:cast(?SERVER, {send, S#carbon_sample{timestamp = Timestamp}})
-     || S <- Samples].
+    [filter_sample(S#carbon_sample{timestamp = Timestamp}, _State) || S <- Samples].
+
+%% By hiding filtering inside a funtion we might later be able to delegate
+%% this action to another process with few changes.
+filter_sample(Sample, _State) ->
+    gen_server:cast(?SERVER, {filter, Sample}).
+
+send_sample(Sample, _State) ->
+    gen_server:cast(?SERVER, {send, Sample}).
 
 term_to_samples(Term) ->
     lists:flatmap(fun subterm_to_samples/1, Term).
