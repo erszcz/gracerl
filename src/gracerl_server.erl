@@ -16,7 +16,8 @@
 -define(SERVER, ?MODULE).
 -define(cfg(K), begin {ok, V} = application:get_env(gracerl, K), V end).
 
--record(state, {trace_pid}).
+-record(state, {trace_pid :: pid() | undefined,
+                last = [] :: [carbon_sample()]}).
 
 -define(l2b(L), list_to_binary(L)).
 -define(l2i(L), list_to_integer(L)).
@@ -63,8 +64,8 @@ handle_cast({trace, TP, {error, Reason, Line}},
 handle_cast({trace, TP, eof}, State = #state{trace_pid = TP}) ->
     {stop, normal, State};
 handle_cast({filter, Sample}, #state{} = State) ->
-    send_sample(Sample, State),
-    {noreply, State};
+    NewS = handle_filter(Sample, State),
+    {noreply, NewS};
 handle_cast({send, Sample}, #state{} = State) ->
     carbonizer:send(Sample),
     {noreply, State};
@@ -158,6 +159,28 @@ normalise(Name) when is_binary(Name) ->
     normalise(?b2l(Name));
 normalise(Name) when is_atom(Name) ->
     normalise(?a2l(Name)).
+
+handle_filter(#carbon_sample{metric = DeepMetric} = Sample0,
+              #state{last = LastSamples} = S) ->
+    Metric = iolist_to_binary(DeepMetric),
+    Sample = Sample0#carbon_sample{metric = Metric},
+    case is_change(Sample, LastSamples) of
+        false -> S;
+        true ->
+            send_sample(Sample, S),
+            S#state{last = update_last(Sample, LastSamples)}
+    end.
+
+is_change(#carbon_sample{metric = Metric, value = Value}, LastSamples) ->
+    case lists:keyfind(Metric, #carbon_sample.metric, LastSamples) of
+        false -> true;
+        #carbon_sample{metric = Metric, value = Value} -> false;
+        #carbon_sample{} -> true
+    end.
+
+update_last(Sample, LastSamples) ->
+    lists:keystore(Sample#carbon_sample.metric,
+                   #carbon_sample.metric, LastSamples, Sample).
 
 script_src() ->
     [{probe, "process-spawn",
