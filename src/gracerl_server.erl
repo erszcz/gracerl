@@ -67,6 +67,7 @@ handle_cast({filter, Sample}, #state{} = State) ->
     NewS = handle_filter(Sample, State),
     {noreply, NewS};
 handle_cast({send, Sample}, #state{} = State) ->
+    io:format("sent to carbon: ~p~n", [Sample]),
     carbonizer:send(Sample),
     {noreply, State};
 handle_cast(stop, State = #state{trace_pid = TP}) ->
@@ -88,12 +89,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-handle_term(Term, _State) ->
+handle_term(Term, #state{last = LastSamples} = State) ->
     Timestamp = os:timestamp(),
     Samples = term_to_samples(Term),
-    io:format("term: ~p~n~n", [Term]),
-    io:format("samples: ~p~n", [Samples]),
-    [filter_sample(S#carbon_sample{timestamp = Timestamp}, _State) || S <- Samples].
+    io:format("samples from term: ~p~n", [length(Samples)]),
+    %io:format("last samples: ~p~n", [LastSamples]),
+    [filter_sample(S#carbon_sample{timestamp = Timestamp}, State)
+     || S <- Samples].
 
 %% By hiding filtering inside a funtion we might later be able to delegate
 %% this action to another process with few changes.
@@ -165,7 +167,9 @@ handle_filter(#carbon_sample{metric = DeepMetric} = Sample0,
     Metric = iolist_to_binary(DeepMetric),
     Sample = Sample0#carbon_sample{metric = Metric},
     case is_change(Sample, LastSamples) of
-        false -> S;
+        false ->
+            io:format("filtered out: ~p~n", [Sample]),
+            S;
         true ->
             send_sample(Sample, S),
             S#state{last = update_last(Sample, LastSamples)}
