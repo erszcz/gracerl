@@ -113,7 +113,6 @@ subterm_to_samples({Stat, [stat | Pids]})
 subterm_to_samples({Stat, [stat | PidSent]})
   when queued =:= Stat;
        received =:= Stat;
-       sent_self =:= Stat;
        sent_total =:= Stat ->
     series_to_samples(metric(?cfg(node), Stat), PidSent);
 subterm_to_samples(_) ->
@@ -159,12 +158,6 @@ script_src() ->
       [{set, exited, [pid]}]},
      {probe, "message-send",
        [{count, sent_total, [sender_pid]}]},
-     {probe, "message-send", {'<', sender_pid, receiver_pid},
-      [{count, sent_up, [sender_pid, receiver_pid]}]},
-     {probe, "message-send", {'>', sender_pid, receiver_pid},
-      [{count, sent_down, [receiver_pid, sender_pid]}]},
-     {probe, "message-send", {'==', sender_pid, receiver_pid},
-      [{count, sent_self, [sender_pid]}]},
      {probe, "message-queued",
       [{count, queued, [pid]}]},
      {probe, "message-receive",
@@ -173,24 +166,17 @@ script_src() ->
       [{print_term,
         [{spawned, '$1'},
          {exited, '$2'},
-         {sent, '$3'},
-         {sent_self, '$4'},
-         {queued, '$5'},
-         {received, '$6'},
-         {sent_total, '$7'}],
+         {queued, '$3'},
+         {received, '$4'},
+         {sent_total, '$5'}],
         [{stat, "%s", spawned},
          {stat, "%s", exited},
-         {stat, {"%s", "%s", "%@d", "%@d"}, [sent_up, sent_down]},
-         {stat, {"%s", "%@d"}, sent_self},
          {stat, {"%s", "%@d"}, queued},
          {stat, {"%s", "%@d"}, received},
          {stat, {"%s", "%@d"}, sent_total}
         ]},
        {reset, spawned},
        {reset, exited},
-       {reset, sent_up},
-       {reset, sent_down},
-       {reset, sent_self},
        {reset, queued},
        {reset, received},
        {reset, sent_total}
