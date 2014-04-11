@@ -95,8 +95,6 @@ handle_term(Term) ->
 term_to_samples(Term) ->
     lists:flatmap(fun subterm_to_samples/1, Term).
 
-%% TODO: term: [{sent,[stat,{"<0.129.0>","<0.130.0>",0,5}]}
-
 subterm_to_samples({Stat, [stat | Pids]})
   when spawned =:= Stat;
        exited =:= Stat ->
